@@ -6,12 +6,13 @@
 
 namespace WinUptime {
 
-void RenderContext::openForValues(const wchar_t** values, std::size_t n)
+void RenderContext::openForValues(const wchar_t* const* values, std::size_t n)
 {
-  handle_.reset(EvtCreateRenderContext(n, values, EvtRenderEventValues));
-  if (!handle_)
+  handle_.reset(EvtCreateRenderContext(n, const_cast<const wchar_t**>(values), EvtRenderEventValues));
+  auto error_code = GetLastError();
+  if (!handle_ || error_code)
   {
-      throw WinException(L"EvtCreateRenderContext: ", GetLastError());
+      throw WinException(L"EvtCreateRenderContext", error_code);
   }
 }
 

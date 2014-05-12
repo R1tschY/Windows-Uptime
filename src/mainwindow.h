@@ -2,10 +2,14 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QDate>
 
-class QListWidget;
+#include "uptimerequest.h"
+
+class QTableView;
 class QLabel;
 class QPushButton;
+class EventModel;
 
 namespace WinUptime {
 
@@ -17,14 +21,9 @@ public:
   explicit MainWindow(QWidget *parent = 0);
   ~MainWindow();
 
-private slots:
-  void OnYearBack();
-  void OnYearForward();
-  void OnMouthBack();
-  void OnMouthForward();
-
 private:
-  QListWidget* listview_;
+  QTableView* table_;
+  EventModel* model_;
 
   // year widgets
   QLabel* year_lbl_;
@@ -35,6 +34,21 @@ private:
   QLabel* mouth_lbl_;
   QPushButton* mouth_back_btn_;
   QPushButton* mouth_forward_btn_;
+
+  // current date
+  QDate date_;
+
+  // Database
+  UptimeRequest database_;
+
+  void updateView();
+  void loadDatabase();
+
+private slots:
+  void onYearBack();
+  void onYearForward();
+  void onMouthBack();
+  void onMouthForward();
 };
 
 } // namespace WinUptime

@@ -3,6 +3,7 @@
 #include <winevt.h>
 
 #include <memory>
+#include <QDebug>
 
 namespace WinUptime {
 

@@ -53,7 +53,8 @@ SOURCES += \
     src/winevt/eventiterator.cpp \
     src/winevt/variant.cpp \
     src/winevt/rendercontext.cpp \
-    src/uptimerequest.cpp
+    src/uptimerequest.cpp \
+    src/uptimeview.cpp
 
 HEADERS  += \
     src/mainwindow.h \
@@ -66,7 +67,8 @@ HEADERS  += \
     src/winevt/errors.h \
     src/winevt/variant.h \
     src/winevt/rendercontext.h \
-    src/uptimerequest.h
+    src/uptimerequest.h \
+    src/uptimeview.h
 
 FORMS    +=
 
