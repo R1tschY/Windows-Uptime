@@ -1,3 +1,22 @@
+/*
+ *  This file is part of Windows-Uptime.
+ *
+ *  Copyright (C) 2014-2015 R1tschY <r1tschy@yahoo.de>
+ *
+ *  Windows-Uptime is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  TrafficIndicator is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "mainwindow.h"
 
 #include <QLayout>
@@ -9,136 +28,223 @@
 #include <QLabel>
 #include <QSizePolicy>
 #include <QHeaderView>
+#include <QMenu>
+#include <QFileDialog>
+#include <QStackedLayout>
+#include <QProgressBar>
+#include <QSplitter>
+#include <QApplication>
 
 #include <array>
 
 #include "winevt/winexception.h"
 #include "uptimeview.h"
+#include "dayuptimecalculator.h"
+
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x) _STRINGIFY(x)
 
 namespace WinUptime {
 
-static QDateTime FromFileTime(FILETIME filetime) {
-  SYSTEMTIME system_time;
-  QDateTime result;
-  bool success = FileTimeToSystemTime(&filetime, &system_time);
-  if (success) {
-    result.setDate(QDate(
-                     system_time.wYear,
-                     system_time.wMonth,
-                     system_time.wDay));
-    result.setTime(QTime(
-                     system_time.wHour,
-                     system_time.wMinute,
-                     system_time.wSecond,
-                     system_time.wMilliseconds));
-  }
-  return result;
+static
+QPushButton* CreateChooserButton(const QIcon& icon)
+{
+  auto btn = new QPushButton();
+  btn->setIcon(icon);
+  btn->setFlat(true);
+  btn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  btn->resize(32, 32);
+  return btn;
+}
+
+static
+QLabel* CreateHeaderLabel(const QString& text)
+{
+  auto lbl = new QLabel(text);
+  lbl->setAlignment(Qt::AlignCenter);
+  QFont font = lbl->font();
+  font.setBold(true);
+  font.setPointSize(10);
+  lbl->setFont(font);
+  return lbl;
 }
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent)
 {
+  setWindowTitle(QStringLiteral("Windows - Uptime"));
+  setWindowIcon(QIcon(QStringLiteral(":/img/app.png")));
+
   // current date
   date_ = QDate::currentDate();
 
   // design
-  QVBoxLayout* layout = new QVBoxLayout();
-  QWidget* main_widget = new QWidget();
-  main_widget->setLayout(layout);
+  resize(500, 400);
+  auto main_widget = new QWidget();
+  main_layout_ = new QStackedLayout(main_widget);
+
+  createWelcomeScreen();
+  createProgressView();
+
+  // Main screen
+  main_screen_ = new QWidget();
+  main_layout_->addWidget(main_screen_);
+  auto layout = new QVBoxLayout(main_screen_);
+
+  createHeader(layout);
+  createTableView(layout);
+
+  // finsh layout
+  main_layout_->setCurrentWidget(welcome_screen_);
   setCentralWidget(main_widget);
 
-  QIcon arrow_left = QIcon(":/img/arrow-left.png");
-  QIcon arrow_right = QIcon(":/img/arrow-right.png");
+  // worker thread
+  database_ = new UptimeRequest(&worker_thread_);
+  connect(database_, SIGNAL(ready()), this, SLOT(onDatabaseLoaded()));
+}
 
-  // Year chooser
-  QHBoxLayout* ylayout = new QHBoxLayout();
-  layout->addLayout(ylayout);
+void MainWindow::createMenu()
+{
+  popup_menu_ = new QMenu();
 
-  year_back_btn_ = new QPushButton();
-  year_back_btn_->setIcon(arrow_left);
-  year_back_btn_->setFlat(true);
-  year_back_btn_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  year_back_btn_->resize(32, 32);
-  connect(year_back_btn_, SIGNAL(clicked()), this, SLOT(onYearBack()));
-  ylayout->addWidget(year_back_btn_);
+  auto saveLog = new QAction(tr("&Save log ..."), this);
+  saveLog->setShortcuts(QKeySequence::Save);
+  connect(saveLog, SIGNAL(triggered()), this, SLOT(onSaveLog()));
+  popup_menu_->addAction(saveLog);
 
-  year_lbl_ = new QLabel("year");
-  year_lbl_->setAlignment(Qt::AlignCenter);
-  QFont year_font = year_lbl_->font();
-  year_font.setBold(true);
-  year_font.setPointSize(10);
-  year_lbl_->setFont(year_font);
-  ylayout->addWidget(year_lbl_);
+  popup_menu_->addSeparator();
 
-  year_forward_btn_ = new QPushButton();
-  year_forward_btn_->setIcon(arrow_right);
-  year_forward_btn_->setFlat(true);
-  year_forward_btn_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  year_forward_btn_->resize(32, 32);
-  connect(year_forward_btn_, SIGNAL(clicked()), this, SLOT(onYearForward()));
-  ylayout->addWidget(year_forward_btn_);
+  auto about = new QAction(tr("&About ..."), this);
+  connect(about, SIGNAL(triggered()), this, SLOT(onAbout()));
+  popup_menu_->addAction(about);
 
-  // Mouth chooser
-  QHBoxLayout* mlayout = new QHBoxLayout();
-  layout->addLayout(mlayout);
+  auto aboutQt = new QAction(tr("&About Qt ..."), this);
+  connect(aboutQt, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
+  popup_menu_->addAction(aboutQt);
+}
 
-  mouth_back_btn_ = new QPushButton();
-  mouth_back_btn_->setIcon(arrow_left);
-  mouth_back_btn_->setFlat(true);
-  mouth_back_btn_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  mouth_back_btn_->resize(32, 32);
-  connect(mouth_back_btn_, SIGNAL(clicked()), this, SLOT(onMouthBack()));
-  mlayout->addWidget(mouth_back_btn_);
+void MainWindow::createWelcomeScreen()
+{
+  QIcon local_icon = QIcon(QStringLiteral(":/img/local.png"));
+  QIcon local_file = QIcon(QStringLiteral(":/img/file.png"));
 
-  mouth_lbl_ = new QLabel("month");
-  mouth_lbl_->setAlignment(Qt::AlignCenter);
-  QFont mouth_font = mouth_lbl_->font();
-  mouth_font.setBold(true);
-  mouth_font.setPointSize(10);
-  mouth_lbl_->setFont(mouth_font);
-  mlayout->addWidget(mouth_lbl_);
+  welcome_screen_ = new QWidget();
+  QVBoxLayout* wslayout = new QVBoxLayout(welcome_screen_);
+  main_layout_->addWidget(welcome_screen_);
 
-  mouth_forward_btn_ = new QPushButton();
-  mouth_forward_btn_->setIcon(arrow_right);
-  mouth_forward_btn_->setFlat(true);
-  mouth_forward_btn_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  mouth_forward_btn_->resize(32, 32);
-  connect(mouth_forward_btn_, SIGNAL(clicked()), this, SLOT(onMouthForward()));
-  mlayout->addWidget(mouth_forward_btn_);
+  auto button_list = new QWidget();
+  QVBoxLayout* bllayout = new QVBoxLayout();
+  button_list->setLayout(bllayout);
+  wslayout->addWidget(button_list, 0, Qt::AlignCenter);
 
-  // testing ...
+  QPushButton *openLocal = new QPushButton(local_icon, tr("Load form local computer"));
+  openLocal->setIconSize(QSize(32, 32));
+  openLocal->setStyleSheet(QStringLiteral("padding: 10px; font-size: 13px;"));
+  connect(openLocal, SIGNAL(clicked()), this, SLOT(onLoadLocal()));
+  bllayout->addWidget(openLocal);
 
-  table_ = new QTableView();
+  QPushButton *openFile = new QPushButton(local_file, tr("Load form file ..."));
+  openFile->setIconSize(QSize(32, 32));
+  openFile->setStyleSheet(QStringLiteral("padding: 10px; font-size: 13px;"));
+  connect(openFile, SIGNAL(clicked()), this, SLOT(onLoadFile()));
+  bllayout->addWidget(openFile);
+}
+
+void MainWindow::createTableView(QBoxLayout* layout)
+{
+  table_view_ = new QTableView();
   model_ = new EventModel();
 
-  table_->setModel(model_);
-  table_->setSelectionBehavior(QAbstractItemView::SelectRows);
-  table_->setSelectionMode(QAbstractItemView::SingleSelection);
-  table_->setWordWrap(true);
-  table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  table_->setShowGrid(false);
+  table_view_->setModel(model_);
+  table_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  table_view_->setSelectionMode(QAbstractItemView::SingleSelection);
+  table_view_->setWordWrap(true);
+  table_view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  table_view_->setShowGrid(false);
 
-  QHeaderView* vheader = table_->verticalHeader();
+  QHeaderView* vheader = table_view_->verticalHeader();
   vheader->setHidden(true);
 
-  QHeaderView* hheader = table_->horizontalHeader();
+  QHeaderView* hheader = table_view_->horizontalHeader();
   hheader->setFrameShape(QFrame::NoFrame);
   hheader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
   hheader->setSectionResizeMode(1, QHeaderView::ResizeToContents);
   hheader->setSectionResizeMode(2, QHeaderView::ResizeToContents);
 
-  layout->addWidget(table_);
+  layout->addWidget(table_view_);
+}
 
-  //
+void MainWindow::createProgressView()
+{
+  progress_screen_ = new QWidget();
+  auto progress_view_layout = new QVBoxLayout(progress_screen_);
 
-  loadDatabase();
+  auto center_widget = new QWidget();
+  auto center_layout = new QVBoxLayout(center_widget);
+  progress_view_layout->addWidget(center_widget, 0, Qt::AlignCenter);
 
-  updateView();
+  progress_label_ = new QLabel(tr("Loading ..."));
+  progress_label_->setStyleSheet(QStringLiteral("font-size: 13px;"));
+
+  progress_bar_ = new QProgressBar();
+  progress_bar_->setRange(0,0);
+  progress_bar_->setFixedWidth(250);
+
+  center_layout->addWidget(progress_label_);
+  center_layout->addWidget(progress_bar_);
+
+  main_layout_->addWidget(progress_screen_);
+}
+
+void MainWindow::createHeader(QBoxLayout* layout)
+{
+  QIcon arrow_left = QIcon(QStringLiteral(":/img/arrow-left.png"));
+  QIcon arrow_right = QIcon(QStringLiteral(":/img/arrow-right.png"));
+  QIcon menu_icon = QIcon(QStringLiteral(":/img/settings.png"));
+
+  // Header
+  QHBoxLayout* headerlayout = new QHBoxLayout();
+  layout->addLayout(headerlayout);
+
+  // Year chooser
+  year_back_btn_ = CreateChooserButton(arrow_left);
+  connect(year_back_btn_, SIGNAL(clicked()), this, SLOT(onYearBack()));
+  headerlayout->addWidget(year_back_btn_);
+
+  year_lbl_ = CreateHeaderLabel(QStringLiteral("year"));
+  headerlayout->addWidget(year_lbl_);
+
+  year_forward_btn_ = CreateChooserButton(arrow_right);
+  connect(year_forward_btn_, SIGNAL(clicked()), this, SLOT(onYearForward()));
+  headerlayout->addWidget(year_forward_btn_);
+
+  // Mouth chooser
+  mouth_back_btn_ = CreateChooserButton(arrow_left);
+  connect(mouth_back_btn_, SIGNAL(clicked()), this, SLOT(onMouthBack()));
+  headerlayout->addWidget(mouth_back_btn_);
+
+  mouth_lbl_ = CreateHeaderLabel(QStringLiteral("month"));
+  headerlayout->addWidget(mouth_lbl_);
+
+  mouth_forward_btn_ = CreateChooserButton(arrow_right);
+  connect(mouth_forward_btn_, SIGNAL(clicked()), this, SLOT(onMouthForward()));
+  headerlayout->addWidget(mouth_forward_btn_);
+
+  // Menu
+  menu_btn_ = new QPushButton(menu_icon, QString("  "));
+  menu_btn_->setFlat(true);
+  menu_btn_->setFixedWidth(40);
+  menu_btn_->setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed));
+
+  createMenu();
+  menu_btn_->setMenu(popup_menu_);
+  headerlayout->addWidget(menu_btn_);
 }
 
 MainWindow::~MainWindow()
 {
-
+  worker_thread_.quit();
+  worker_thread_.wait();
 }
 
 void MainWindow::onYearBack()
@@ -165,151 +271,65 @@ void MainWindow::onMouthForward()
   updateView();
 }
 
-void MainWindow::loadDatabase()
+void MainWindow::onSaveLog()
 {
-  try {
-    database_.loadAll();
+  QString save_path = QFileDialog::getSaveFileName(
+            this,
+            tr("Save log"));
+  if (save_path.length() == 0) return;
 
-  } catch (WinException exp) {
-    qDebug() << QString::fromWCharArray(exp.what());
+  QFile file(save_path);
+  if (!file.open(QIODevice::WriteOnly)) {
+      QMessageBox::information(this, tr("Unable to open file"),
+          file.errorString());
+      return;
+  }
+
+  QTextStream out(&file);
+  for (auto&& event : database_->getEvents()) {
+    out << "@" << event.getTime().toDateTime().toString(Qt::RFC2822Date)
+        << ": " << event.getTypeString() << "\n";
   }
 }
 
-enum class PowerState {
-  On,
-  Off,
-  Suspended,
-  Unknown
-};
+void MainWindow::onAbout()
+{
+  QMessageBox::about(this,
+                     tr("About Windows - Uptime"),
+                     tr("<b>Windows - Uptime</b> is a application to get information when a windows computer was on.<br /><br />"
+                        "Version " STRINGIFY(PACKAGE_VERSION) "<br />"
+                        "Copyright &copy; 2014 - 2015  R1tschY &lt;r1tschy@yahoo.de&gt;<br /><br />"
+                        "This program is free software: you can redistribute it and/or modify "
+                        "it under the terms of the GNU General Public License as published by "
+                        "the Free Software Foundation, either version 3 of the License, or "
+                        "(at your option) any later version.<br />"
+                        "<br />"
+                        "All icons from <a href=\"http://www.iconsdb.com\">ICONSDB.COM</a>"));
+}
 
-class DayUptimeCalculator {
-public:
-  DayUptimeCalculator(EventModel* model):
-    model_(model), last_day_(1), uptime_(0, 0), ontime_(0, 0)
-  { }
+void MainWindow::onLoadLocal()
+{
+  main_layout_->setCurrentWidget(progress_screen_);
+  database_->loadLocal();
+}
 
-  void operator()(PowerEvent event) {
-    QDateTime date = event.time.toDateTime();
-    unsigned day = date.date().day();
+void MainWindow::onLoadFile()
+{
+  QString file_path = QFileDialog::getOpenFileName(
+        this,
+        tr("Open log"),
+        QString(), tr("Event log (*.evt *.evtx *.etl)"));
+  if (file_path.length() == 0) return;
 
-    if (day != last_day_) {
-      int remainingMs = 24*3600*1000 - last_time_.msecsSinceStartOfDay();
+  main_layout_->setCurrentWidget(progress_screen_);
+  database_->loadFromFile(file_path);
+}
 
-      switch (event.type) {
-      case PowerEvent::Type::BOOT_UP:
-        model_->addRow(last_day_, uptime_, ontime_);
-        break;
-
-      case PowerEvent::Type::SUSPEND:
-      case PowerEvent::Type::SHUTDOWN:
-        uptime_ = uptime_.addMSecs(remainingMs);
-        ontime_ = ontime_.addMSecs(remainingMs);
-        model_->addRow(last_day_, uptime_, ontime_);
-        break;
-
-      case PowerEvent::Type::RESUME:
-        ontime_ = ontime_.addMSecs(remainingMs);
-        model_->addRow(last_day_, uptime_, ontime_);
-        break;
-      }
-
-      for (unsigned i = last_day_ + 1; i < day; i++) {
-        switch (event.type) {
-        case PowerEvent::Type::BOOT_UP:
-          model_->addRow(i, QTime(0, 0, 0), QTime(0, 0, 0));
-          break;
-
-        case PowerEvent::Type::SUSPEND:
-        case PowerEvent::Type::SHUTDOWN:
-          model_->addRow(i, QTime(24, 0, 0), QTime(24, 0, 0));
-          break;
-
-        case PowerEvent::Type::RESUME:
-          model_->addRow(i, QTime(0, 0, 0), QTime(24, 0, 0));
-          break;
-        }
-      }
-
-      uptime_ = QTime(0,0);
-      ontime_ = QTime(0,0);
-      last_day_ = day;
-    }
-
-    int newMs = last_time_.msecsTo(date.time());
-    switch (event.type) {
-    case PowerEvent::Type::SUSPEND:
-    case PowerEvent::Type::SHUTDOWN:
-      uptime_ = uptime_.addMSecs(newMs);
-      ontime_ = ontime_.addMSecs(newMs);
-      break;
-
-    case PowerEvent::Type::RESUME:
-      ontime_ = ontime_.addMSecs(newMs);
-      break;
-    }
-    last_time_ = date.time();
-
-    switch (event.type) {
-    case PowerEvent::Type::SUSPEND:
-      state_ = PowerState::Suspended;
-      break;
-
-    case PowerEvent::Type::SHUTDOWN:
-      state_ = PowerState::Off;
-      break;
-
-    case PowerEvent::Type::BOOT_UP:
-    case PowerEvent::Type::RESUME:
-      state_ = PowerState::On;
-      break;
-    }
-  }
-
-  void finish(unsigned last_day_of_mouth) {
-    int remainingMs = 24*3600*1000 - last_time_.msecsSinceStartOfDay();
-
-    switch (state_) {
-    case PowerState::Off:
-      model_->addRow(last_day_, uptime_, ontime_);
-      break;
-
-    case PowerState::On:
-      uptime_ = uptime_.addMSecs(remainingMs);
-      ontime_ = ontime_.addMSecs(remainingMs);
-      model_->addRow(last_day_, uptime_, ontime_);
-      break;
-
-    case PowerState::Suspended:
-      ontime_ = ontime_.addMSecs(remainingMs);
-      model_->addRow(last_day_, uptime_, ontime_);
-      break;
-    }
-
-    for (unsigned i = last_day_ + 1; i < last_day_of_mouth; i++) {
-      switch (state_) {
-      case PowerState::Off:
-        model_->addRow(i, QTime(0, 0, 0), QTime(0, 0, 0));
-        break;
-
-      case PowerState::On:
-        model_->addRow(i, QTime(24, 0, 0), QTime(24, 0, 0));
-        break;
-
-      case PowerState::Suspended:
-        model_->addRow(i, QTime(0, 0, 0), QTime(24, 0, 0));
-        break;
-      }
-    }
-  }
-
-private:
-  PowerState state_ = PowerState::Unknown;
-  EventModel* model_;
-  unsigned last_day_;
-  QTime last_time_;
-  QTime uptime_;
-  QTime ontime_;
-};
+void MainWindow::onDatabaseLoaded()
+{
+  main_layout_->setCurrentWidget(main_screen_);
+  updateView();
+}
 
 void MainWindow::updateView()
 {
@@ -323,10 +343,11 @@ void MainWindow::updateView()
 
   QDate begin_date(date_.year(), date_.month(), 1);
   QDate end_date = begin_date.addMonths(1);  
-  database_.forEachEventBetween(
-        SystemTime(QDateTime(begin_date, QTime(0, 0))),
-        SystemTime(QDateTime(end_date, QTime(0, 0))),
-        [&] (PowerEvent event) {
+  database_->forEachEventBetween(
+        QDateTime(begin_date, QTime(0, 0)),
+        QDateTime(end_date, QTime(0, 0)),
+        [&] (const PowerEvent& event)
+  {
     event.print();
     c(event);
   });

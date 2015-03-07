@@ -4,18 +4,18 @@
 #
 #-------------------------------------------------
 
-VERSION = 0.0
-
-QT       += core gui
-
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
-
-TARGET = Windows-Uptime
-TEMPLATE = app
+QT       += core gui widgets
+CONFIG   += c++11
+TARGET    = Windows-Uptime
+TEMPLATE  = app
+VERSION  = 0.1
 
 LIBS            += -lWevtapi
-QMAKE_CXXFLAGS  += -std=gnu++0x
-QMAKE_LFLAGS    += -std=gnu++0x
+
+CONFIG(release, debug|release) {
+QMAKE_CXXFLAGS  += -flto
+QMAKE_LFLAGS    += -flto
+}
 
 # do not compress png resources
 QMAKE_RESOURCE_FLAGS += -no-compress
@@ -25,10 +25,6 @@ DEFINES *= QT_USE_QSTRINGBUILDER
 
 # Version für Quelldateien
 DEFINES += PACKAGE_VERSION=$$VERSION
-
-# Find Boost library
-
-INCLUDEPATH += $$BOOST_ROOT
 
 # include what we need
 QMAKE_CXXFLAGS += \
@@ -49,12 +45,12 @@ SOURCES += \
     src/winevt/eventlog.cpp \
     src/winevt/winexception.cpp \
     src/winevt/eventchanneliterator.cpp \
-    src/winevt/event.cpp \
     src/winevt/eventiterator.cpp \
     src/winevt/variant.cpp \
     src/winevt/rendercontext.cpp \
     src/uptimerequest.cpp \
-    src/uptimeview.cpp
+    src/uptimeview.cpp \
+    src/dayuptimecalculator.cpp
 
 HEADERS  += \
     src/mainwindow.h \
@@ -68,7 +64,8 @@ HEADERS  += \
     src/winevt/variant.h \
     src/winevt/rendercontext.h \
     src/uptimerequest.h \
-    src/uptimeview.h
+    src/uptimeview.h \
+    src/dayuptimecalculator.h
 
 FORMS    +=
 

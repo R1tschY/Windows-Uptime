@@ -1,3 +1,22 @@
+/*
+ *  This file is part of Windows-Uptime.
+ *
+ *  Copyright (C) 2014-2015 R1tschY <r1tschy@yahoo.de>
+ *
+ *  Windows-Uptime is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  TrafficIndicator is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef EVENTLOG_H
 #define EVENTLOG_H
 
@@ -5,7 +24,6 @@
 
 #include "eventchanneliterator.h"
 #include "eventiterator.h"
-#include <boost/utility/string_ref.hpp>
 
 #include "eventhandle.h"
 
@@ -14,38 +32,32 @@ namespace WinUptime {
 class EventLog
 {
 public:  
-  static EventLog getLocalLog() {
-    return EventLog(EventHandle(nullptr));
+  static EventLog getLocalChannel(const std::wstring& channel_name) {
+    return EventLog(EventHandle(nullptr), channel_name, EvtQueryChannelPath);
   }
 
-  EventChannelIterator getChannelPaths();
-
-  EventIterator queryFile(boost::wstring_ref path, boost::wstring_ref q, bool reverse = false) {
-    DWORD dir = reverse ? EvtQueryForwardDirection : EvtQueryReverseDirection;
-    return query(path, q, EvtQueryFilePath | dir);
+  static EventLog getFileLog(const std::wstring& path) {
+    return EventLog(EventHandle(nullptr), path, EvtQueryFilePath);
   }
 
-  EventIterator queryFileAll(boost::wstring_ref path, bool reverse = false) {
-    return queryFile(path, L"*", reverse);
+  static EventChannelIterator getLocalChannels();
+
+  EventIterator query(const std::wstring& q, bool reverse = false) {
+    return query(q, reverse ? EvtQueryForwardDirection : EvtQueryReverseDirection);
   }
 
-  EventIterator queryChannel(boost::wstring_ref path, boost::wstring_ref q, bool reverse = false) {
-    DWORD dir = reverse ? EvtQueryForwardDirection : EvtQueryReverseDirection;
-    return query(path, q, EvtQueryChannelPath | dir);
-  }
-
-  EventIterator queryChannelAll(boost::wstring_ref path, bool reverse = false) {
-    return queryChannel(path, L"*", reverse);
+  EventIterator queryAll(bool reverse = false) {
+    return query(L"*", reverse);
   }
 
 private:
   EventHandle handle_;
+  std::wstring path_;
+  DWORD flags_;
 
-  EventLog(EventHandle&& handle) :
-    handle_(std::move(handle))
-  { }
+  EventLog(EventHandle&& handle, const std::wstring& path, EVT_QUERY_FLAGS flags);
 
-  EventIterator query(boost::wstring_ref path, boost::wstring_ref query, DWORD flags);
+  EventIterator query(const std::wstring& query, EVT_QUERY_FLAGS flags);
 };
 
 } // namespace WinUptime

@@ -17,34 +17,41 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "eventlog.h"
+#ifndef DAYUPTIMECALCULATOR_H
+#define DAYUPTIMECALCULATOR_H
 
-#include "winexception.h"
+#include <QTime>
 
-#include <QDebug>
+#include "uptimerequest.h"
 
 namespace WinUptime {
 
-EventLog::EventLog(EventHandle&& handle, const std::wstring& path, EVT_QUERY_FLAGS flags) :
-  handle_(std::move(handle)), path_(path.begin(), path.end()), flags_(flags)
-{ }
+enum class PowerState {
+  On,
+  Off,
+  Suspended,
+  Unknown
+};
 
-EventChannelIterator EventLog::getLocalChannels()
-{
-  EventHandle handle(EvtOpenChannelEnum(nullptr, 0));
-  if (handle == nullptr) {
-    throw WinException(L"EvtOpenChannelEnum", GetLastError());
-  }
-  return EventChannelIterator(std::move(handle));
-}
+class EventModel;
 
-EventIterator EventLog::query(const std::wstring& query, EVT_QUERY_FLAGS flags)
-{
-  EventHandle handle(EvtQuery(handle_.get(), path_.data(), query.data(), flags_ | flags));
-  if (handle == nullptr) {
-    throw WinException(L"EvtQuery", GetLastError());
-  }
-  return EventIterator(std::move(handle));
-}
+class DayUptimeCalculator {
+public:
+  DayUptimeCalculator(EventModel* model);
+
+  void operator()(PowerEvent event);
+
+  void finish(unsigned last_day_of_mouth);
+
+private:
+  PowerState state_ = PowerState::Unknown;
+  EventModel* model_;
+  unsigned last_day_;
+  QTime last_time_;
+  QTime uptime_;
+  QTime ontime_;
+};
 
 } // namespace WinUptime
+
+#endif // DAYUPTIMECALCULATOR_H

@@ -1,6 +1,8 @@
 #ifndef ERRORS_H
 #define ERRORS_H
 
+#include <windows.h>
+
 //
 // MessageId: ERROR_EVT_INVALID_CHANNEL_PATH
 //

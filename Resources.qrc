@@ -2,5 +2,9 @@
     <qresource prefix="/">
         <file>img/arrow-left.png</file>
         <file>img/arrow-right.png</file>
+        <file>img/settings.png</file>
+        <file>img/local.png</file>
+        <file>img/file.png</file>
+        <file>img/app.png</file>
     </qresource>
 </RCC>

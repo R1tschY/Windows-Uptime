@@ -1,3 +1,22 @@
+/*
+ *  This file is part of Windows-Uptime.
+ *
+ *  Copyright (C) 2014-2015 R1tschY <r1tschy@yahoo.de>
+ *
+ *  Windows-Uptime is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  TrafficIndicator is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <QSettings>
 #include <QTableView>
 #include <QSortFilterProxyModel>
@@ -10,6 +29,8 @@
 #include <QTime>
 
 #include "uptimeview.h"
+
+namespace WinUptime {
 
 EventModel::EventModel(QObject* parent) :
   QAbstractTableModel(parent),
@@ -38,16 +59,16 @@ QVariant EventModel::data(const QModelIndex& index, int role) const {
   int row = index.row();
 
   if (role == Qt::DisplayRole) {
-    Row data = rows_.at(row);
+    const Row& data = rows_.at(row);
     switch ((Column)column) {
     case Column::Day:
       return std::get<DataColumn_Day>(data);
 
     case Column::Uptime:
-      return std::get<DataColumn_Uptime>(data).toString("hh'h' mm'm' ss's'");
+      return std::get<DataColumn_Uptime>(data).toString(QStringLiteral("hh'h' mm'm' ss's'"));
 
     case Column::Ontime:
-     return std::get<DataColumn_Ontime>(data).toString("hh'h' mm'm' ss's'");
+     return std::get<DataColumn_Ontime>(data).toString(QStringLiteral("hh'h' mm'm' ss's'"));
 
     default:
       return QVariant();
@@ -65,13 +86,13 @@ QVariant EventModel::headerData(int section,
     if (orientation == Qt::Horizontal) {
       switch ((Column)section) {
       case Column::Day:
-        return "Day";
+        return QStringLiteral("Day");
 
       case Column::Uptime:
-        return "Uptime";
+        return QStringLiteral("Uptime");
 
       case Column::Ontime:
-        return "Ontime";
+        return QStringLiteral("Ontime");
 
       default:
         return QVariant();
@@ -90,7 +111,9 @@ bool EventModel::update() {
   if (rows_.size() > 0) {
     beginInsertRows(QModelIndex(), 0, rows_.size()-1);
     endInsertRows();
+    return true;
   }
+  return false;
 }
 
 void EventModel::clear() {
@@ -114,3 +137,5 @@ Qt::ItemFlags EventModel::flags(const QModelIndex &index) const {
 
   return QAbstractTableModel::flags(index);
 }
+
+} // namespace WinUptime

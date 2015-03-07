@@ -1,3 +1,22 @@
+/*
+ *  This file is part of Windows-Uptime.
+ *
+ *  Copyright (C) 2014-2015 R1tschY <r1tschy@yahoo.de>
+ *
+ *  Windows-Uptime is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  TrafficIndicator is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef UPTIMEREQUEST_H
 #define UPTIMEREQUEST_H
 
@@ -7,6 +26,8 @@
 #include <functional>
 #include <QDateTime>
 
+class QThread;
+
 namespace WinUptime {
 
 class SystemTime {
@@ -15,11 +36,11 @@ public:
     time_(time)
   { }
 
-  explicit SystemTime(FILETIME time) :
+  SystemTime(FILETIME time) :
     time_((uint64_t(time.dwHighDateTime) << 32) + time.dwLowDateTime)
   { }
 
-  explicit SystemTime(const QDateTime& time);
+  SystemTime(const QDateTime& time);
 
   uint64_t toUInt64() const {
     return time_;
@@ -47,31 +68,45 @@ public:
     RESUME
   };
 
-  Type type;
-  SystemTime time;
-
   PowerEvent(Type type, ULONGLONG time) :
-    type(type), time(time)
+    type_(type), time_(time)
   { }
 
   void print() const;
 
-  const wchar_t* getTypeString() const;
+  Type getType() const { return type_; }
+  SystemTime getTime() const { return time_; }
+  QString getTypeString() const;
+
+private:
+  Type type_;
+  SystemTime time_;
 };
 
-class UptimeRequest
-{
+class UptimeRequest : public QObject {
+  Q_OBJECT
 public:
-  UptimeRequest();
+  UptimeRequest(QThread* thread);
 
-  void loadAll();
+  void loadLocal();
+  void loadFromFile(const QString& path);
   void print();
 
   void forEachEventBetween(SystemTime start, SystemTime end,
-                           std::function<void(PowerEvent)> visitor);
+                           std::function<void(const PowerEvent&)> visitor) const;
+
+  const std::deque<PowerEvent>& getEvents() const { return database_; }
+
+signals:
+  void ready();
+  void load(QString server);
 
 private:
   std::deque<PowerEvent> database_;
+  QThread* thread_;
+
+private slots:
+  void run(QString path);
 };
 
 } // namespace WinUptime
