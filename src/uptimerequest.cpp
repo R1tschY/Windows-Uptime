@@ -19,14 +19,15 @@
 
 #include "uptimerequest.h"
 
-#include "winevt/eventlog.h"
-#include "winevt/rendercontext.h"
-#include "winevt/winexception.h"
-
+#include <algorithm>
 #include <QDebug>
 #include <QDateTime>
 #include <QThread>
 #include <QDir>
+
+#include "winevt/eventlog.h"
+#include "winevt/rendercontext.h"
+#include "winevt/winexception.h"
 
 namespace WinUptime {
 
@@ -105,11 +106,11 @@ void UptimeRequest::run(QString path)
             break;
 
           database_.emplace_back(
-                PowerEvent::Type::SUSPEND,
-                old_time);
-          database_.emplace_back(
                 PowerEvent::Type::RESUME,
                 new_time);
+          database_.emplace_back(
+                PowerEvent::Type::SUSPEND,
+                old_time);
           break;
         }
 
@@ -127,6 +128,11 @@ void UptimeRequest::run(QString path)
         }
       }
     }
+
+    std::sort(database_.begin(), database_.end(),
+              [](const PowerEvent& a, const PowerEvent& b) -> bool {
+      return a.getTime() > b.getTime();
+    });
 
     emit ready();
 

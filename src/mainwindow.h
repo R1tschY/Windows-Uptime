@@ -99,7 +99,8 @@ private slots:
   void onMouthBack();
   void onMouthForward();
 
-  void onSaveLog();
+  void onSaveEventLog();
+  void onSaveUptimeLog();
 
   void onAbout();
 

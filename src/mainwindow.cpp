@@ -107,10 +107,14 @@ void MainWindow::createMenu()
 {
   popup_menu_ = new QMenu();
 
-  auto saveLog = new QAction(tr("&Save log ..."), this);
-  saveLog->setShortcuts(QKeySequence::Save);
-  connect(saveLog, SIGNAL(triggered()), this, SLOT(onSaveLog()));
-  popup_menu_->addAction(saveLog);
+  auto eventLog = new QAction(tr("&Save event log ..."), this);
+  connect(eventLog, SIGNAL(triggered()), this, SLOT(onSaveEventLog()));
+  popup_menu_->addAction(eventLog);
+
+  auto uptimeLog = new QAction(tr("&Save uptime log ..."), this);
+  uptimeLog->setShortcuts(QKeySequence::Save);
+  connect(uptimeLog, SIGNAL(triggered()), this, SLOT(onSaveUptimeLog()));
+  popup_menu_->addAction(uptimeLog);
 
   popup_menu_->addSeparator();
 
@@ -271,11 +275,11 @@ void MainWindow::onMouthForward()
   updateView();
 }
 
-void MainWindow::onSaveLog()
+void MainWindow::onSaveEventLog()
 {
   QString save_path = QFileDialog::getSaveFileName(
             this,
-            tr("Save log"));
+            tr("Save event log"));
   if (save_path.length() == 0) return;
 
   QFile file(save_path);
@@ -287,8 +291,28 @@ void MainWindow::onSaveLog()
 
   QTextStream out(&file);
   for (auto&& event : database_->getEvents()) {
-    out << "@" << event.getTime().toDateTime().toString(Qt::RFC2822Date)
+    out << event.getTime().toDateTime().toString(Qt::RFC2822Date)
         << ": " << event.getTypeString() << "\n";
+  }
+}
+
+void MainWindow::onSaveUptimeLog()
+{
+  QString save_path = QFileDialog::getSaveFileName(
+            this,
+            tr("Save uptime log"));
+  if (save_path.length() == 0) return;
+
+  QFile file(save_path);
+  if (!file.open(QIODevice::WriteOnly)) {
+      QMessageBox::information(this, tr("Unable to open file"),
+          file.errorString());
+      return;
+  }
+
+  QTextStream out(&file);
+  for (auto&& row : model_->getRows()) {
+    out << "day of mouth " << std::get<0>(row) << " uptime " << std::get<1>(row).toString() << " ontime " << std::get<2>(row).toString() << "\n";
   }
 }
 
@@ -318,7 +342,7 @@ void MainWindow::onLoadFile()
   QString file_path = QFileDialog::getOpenFileName(
         this,
         tr("Open log"),
-        QString(), tr("Event log (*.evt *.evtx *.etl)"));
+        QString(), tr("Event log (*.evt *.evtx *.etl);; All files (*.*)"));
   if (file_path.length() == 0) return;
 
   main_layout_->setCurrentWidget(progress_screen_);

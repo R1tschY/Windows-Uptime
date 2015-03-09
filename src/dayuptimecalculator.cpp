@@ -19,75 +19,87 @@
 
 #include "dayuptimecalculator.h"
 
+#include <cassert>
+#include <QDebug>
 #include "uptimeview.h"
 
 namespace WinUptime {
 
 DayUptimeCalculator::DayUptimeCalculator(EventModel* model):
-  model_(model), last_day_(1), uptime_(0, 0), ontime_(0, 0)
+  model_(model), last_time_(0,0), uptime_(0, 0), ontime_(0, 0)
 { }
 
-void DayUptimeCalculator::operator()(PowerEvent event) {
+void DayUptimeCalculator::operator()(const PowerEvent& event) {
   QDateTime date = event.getTime().toDateTime();
-  unsigned day = date.date().day();
+  int day = date.date().day(); // FIXME
 
   if (day != last_day_) {
-    int remainingMs = 24*3600*1000 - last_time_.msecsSinceStartOfDay();
-
-    switch (event.getType()) {
-    case PowerEvent::Type::BOOT_UP:
-      model_->addRow(last_day_, uptime_, ontime_);
-      break;
-
-    case PowerEvent::Type::SUSPEND:
-    case PowerEvent::Type::SHUTDOWN:
-      uptime_ = uptime_.addMSecs(remainingMs);
-      ontime_ = ontime_.addMSecs(remainingMs);
-      model_->addRow(last_day_, uptime_, ontime_);
-      break;
-
-    case PowerEvent::Type::RESUME:
-      ontime_ = ontime_.addMSecs(remainingMs);
-      model_->addRow(last_day_, uptime_, ontime_);
-      break;
-    }
-
-    for (unsigned i = last_day_ + 1; i < day; i++) {
-      switch (event.getType()) {
-      case PowerEvent::Type::BOOT_UP:
-        model_->addRow(i, QTime(0, 0, 0), QTime(0, 0, 0));
-        break;
-
-      case PowerEvent::Type::SUSPEND:
-      case PowerEvent::Type::SHUTDOWN:
-        model_->addRow(i, QTime(24, 0, 0), QTime(24, 0, 0));
-        break;
-
-      case PowerEvent::Type::RESUME:
-        model_->addRow(i, QTime(0, 0, 0), QTime(24, 0, 0));
-        break;
-      }
-    }
-
-    uptime_ = QTime(0,0);
-    ontime_ = QTime(0,0);
-    last_day_ = day;
+    assert(day - last_day_ >= 0);
+    processUntilDay(day);
   }
 
   int newMs = last_time_.msecsTo(date.time());
-  switch (event.getType()) {
-  case PowerEvent::Type::SUSPEND:
-  case PowerEvent::Type::SHUTDOWN:
-    uptime_ = uptime_.addMSecs(newMs);
-    ontime_ = ontime_.addMSecs(newMs);
+  process(newMs);
+
+  last_time_ = date.time();
+  advance(event);
+}
+
+void DayUptimeCalculator::finish(int last_day_of_mouth) {
+  processUntilDay(last_day_of_mouth+1);
+}
+
+void DayUptimeCalculator::processUntilDay(int day)
+{
+  int remainingMs = MsPerDay - last_time_.msecsSinceStartOfDay();
+
+  // process last time of day
+  process(remainingMs);
+  model_->addRow(last_day_, uptime_, ontime_);
+
+  // process days between
+  for (int i = last_day_ + 1; i < day; i++) {
+    uptime_ = QTime(0,0);
+    ontime_ = QTime(0,0);
+    last_time_ = QTime(0,0);
+    last_day_ = i;
+
+    process(MsPerDay);
+    model_->addRow(i, uptime_, ontime_);
+  }
+
+  // start new day
+  uptime_ = QTime(0,0);
+  ontime_ = QTime(0,0);
+  last_time_ = QTime(0,0);
+  last_day_ = day;
+}
+
+void DayUptimeCalculator::process(int time_step)
+{
+  // process time
+  assert(time_step >= 0);
+
+  switch (state_) {
+  case PowerState::Off:
     break;
 
-  case PowerEvent::Type::RESUME:
-    ontime_ = ontime_.addMSecs(newMs);
+  case PowerState::On:
+    uptime_ = uptime_.addMSecs(time_step);
+
+  case PowerState::Suspended:
+    ontime_ = ontime_.addMSecs(time_step);
+    break;
+
+  case PowerState::Unknown:
+    // TODO
     break;
   }
-  last_time_ = date.time();
+}
 
+void DayUptimeCalculator::advance(const PowerEvent& event)
+{
+  // set new state
   switch (event.getType()) {
   case PowerEvent::Type::SUSPEND:
     state_ = PowerState::Suspended;
@@ -103,43 +115,5 @@ void DayUptimeCalculator::operator()(PowerEvent event) {
     break;
   }
 }
-
-void DayUptimeCalculator::finish(unsigned last_day_of_mouth) {
-  int remainingMs = 24*3600*1000 - last_time_.msecsSinceStartOfDay();
-
-  switch (state_) {
-  case PowerState::Off:
-    model_->addRow(last_day_, uptime_, ontime_);
-    break;
-
-  case PowerState::On:
-    uptime_ = uptime_.addMSecs(remainingMs);
-    ontime_ = ontime_.addMSecs(remainingMs);
-    model_->addRow(last_day_, uptime_, ontime_);
-    break;
-
-  case PowerState::Suspended:
-    ontime_ = ontime_.addMSecs(remainingMs);
-    model_->addRow(last_day_, uptime_, ontime_);
-    break;
-  }
-
-  for (unsigned i = last_day_ + 1; i < last_day_of_mouth; i++) {
-    switch (state_) {
-    case PowerState::Off:
-      model_->addRow(i, QTime(0, 0, 0), QTime(0, 0, 0));
-      break;
-
-    case PowerState::On:
-      model_->addRow(i, QTime(24, 0, 0), QTime(24, 0, 0));
-      break;
-
-    case PowerState::Suspended:
-      model_->addRow(i, QTime(0, 0, 0), QTime(24, 0, 0));
-      break;
-    }
-  }
-}
-
 
 } // namespace WinUptime

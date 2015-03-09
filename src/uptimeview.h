@@ -67,6 +67,8 @@ public:
   void clear();
   bool update();
 
+  const Rows& getRows() const { return rows_; }
+
 private:
   Rows rows_;
 };

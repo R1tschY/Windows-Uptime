@@ -39,17 +39,23 @@ class DayUptimeCalculator {
 public:
   DayUptimeCalculator(EventModel* model);
 
-  void operator()(PowerEvent event);
+  void operator()(const PowerEvent& event);
 
-  void finish(unsigned last_day_of_mouth);
+  void finish(int last_day_of_mouth);
 
 private:
   PowerState state_ = PowerState::Unknown;
   EventModel* model_;
-  unsigned last_day_;
+  int last_day_ = 1;
   QTime last_time_;
   QTime uptime_;
   QTime ontime_;
+
+  static constexpr int MsPerDay = 24*3600*1000;
+
+  void processUntilDay(int day);
+  void process(int time_step);
+  void advance(const PowerEvent& event);
 };
 
 } // namespace WinUptime
