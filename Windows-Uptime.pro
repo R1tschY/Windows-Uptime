@@ -65,7 +65,8 @@ HEADERS  += \
     src/winevt/rendercontext.h \
     src/uptimerequest.h \
     src/uptimeview.h \
-    src/dayuptimecalculator.h
+    src/dayuptimecalculator.h \
+    src/utils.h
 
 FORMS    +=
 

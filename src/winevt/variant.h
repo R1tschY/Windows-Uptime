@@ -24,6 +24,7 @@
 #include <winevt.h>
 
 #include <cstdint>
+#include <stdexcept>
 
 namespace WinUptime {
 
@@ -42,6 +43,12 @@ public:
 
   const ULONGLONG* getFileTime() const noexcept {
     return (variant_.Type != EvtVarTypeFileTime) ? nullptr : &variant_.FileTimeVal;
+  }
+
+  const ULONGLONG* getFileTimeChecked() const noexcept {
+    return (variant_.Type != EvtVarTypeFileTime) ?
+          throw std::runtime_error("WinUptime::Variant has not the requested type.") :
+          &variant_.FileTimeVal;
   }
 
   const uint16_t* getUInt16() const noexcept {

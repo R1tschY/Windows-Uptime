@@ -40,9 +40,7 @@
 #include "winevt/winexception.h"
 #include "uptimeview.h"
 #include "dayuptimecalculator.h"
-
-#define _STRINGIFY(x) #x
-#define STRINGIFY(x) _STRINGIFY(x)
+#include "utils.h"
 
 namespace WinUptime {
 
@@ -290,9 +288,12 @@ void MainWindow::onSaveEventLog()
   }
 
   QTextStream out(&file);
+  out << "datetime;event;argument\n";
   for (auto&& event : database_->getEvents()) {
     out << event.getTime().toDateTime().toString(Qt::RFC2822Date)
-        << ": " << event.getTypeString() << "\n";
+        << ";" << event.getTypeString()
+        << ";" << event.getTimeNeeded() / (10*1000) << "ms"
+        << "\n";
   }
 }
 
@@ -311,8 +312,9 @@ void MainWindow::onSaveUptimeLog()
   }
 
   QTextStream out(&file);
+  out << "day of mouth;uptime;ontime\n";
   for (auto&& row : model_->getRows()) {
-    out << "day of mouth " << std::get<0>(row) << " uptime " << std::get<1>(row).toString() << " ontime " << std::get<2>(row).toString() << "\n";
+    out << std::get<0>(row) << ";" << std::get<1>(row).toString() << ";" << std::get<2>(row).toString() << "\n";
   }
 }
 

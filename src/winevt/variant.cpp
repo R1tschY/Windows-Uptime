@@ -19,6 +19,8 @@
 
 #include "variant.h"
 
+#include "../utils.h"
+
 namespace WinUptime {
 
 Variant::Variant()

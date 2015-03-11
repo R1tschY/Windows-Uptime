@@ -101,17 +101,25 @@ void DayUptimeCalculator::advance(const PowerEvent& event)
 {
   // set new state
   switch (event.getType()) {
-  case PowerEvent::Type::SUSPEND:
+  case PowerEvent::Type::Suspend:
     state_ = PowerState::Suspended;
     break;
 
-  case PowerEvent::Type::SHUTDOWN:
+  case PowerEvent::Type::Shutdown:
     state_ = PowerState::Off;
     break;
 
-  case PowerEvent::Type::BOOT_UP:
-  case PowerEvent::Type::RESUME:
+  case PowerEvent::Type::BootUp:
+  case PowerEvent::Type::Resume:
     state_ = PowerState::On;
+    break;
+
+  case PowerEvent::Type::SystemTimeTurnForth:
+    // TODO
+    break;
+
+  case PowerEvent::Type::SystemTimeTurnedBack:
+    // TODO
     break;
   }
 }

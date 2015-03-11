@@ -19,9 +19,11 @@
 
 #include "uptimerequest.h"
 
+#include <cstdint>
 #include <algorithm>
 #include <QDebug>
 #include <QDateTime>
+#include <QTime>
 #include <QThread>
 #include <QDir>
 
@@ -77,19 +79,17 @@ void UptimeRequest::run(QString path)
           EventLog::getLocalChannel(L"System") :
           EventLog::getFileLog(QDir::toNativeSeparators(path).toStdWString());
 
-    EventIterator iter = log.query(
-          L"*[System/Provider[@Name=\"Microsoft-Windows-Kernel-General\"]]");
-
     RenderContext id_context(L"Event/System/EventID");
-    RenderContext resume_context({
+    Event event;
+
+    EventIterator kernel_general = log.query(L"*[System/Provider[@Name=\"Microsoft-Windows-Kernel-General\"]]");
+    RenderContext time_changed_context({
                                    L"Event/EventData/Data[@Name=\"OldTime\"]",
                                    L"Event/EventData/Data[@Name=\"NewTime\"]"
                                  });
     RenderContext boot_up_context(L"Event/EventData/Data[@Name=\"StartTime\"]");
     RenderContext shutdown_context(L"Event/EventData/Data[@Name=\"StopTime\"]");
-
-    Event event;
-    while (iter.next(event)) {
+    while (kernel_general.next(event)) {
       Variant result = id_context.getValue(event);
 
       const uint16_t* eventid = result.getUInt16();
@@ -97,35 +97,62 @@ void UptimeRequest::run(QString path)
         switch (*eventid) {
         case 1: {
           Variant results[2];
-          resume_context.getValues(event, results);
-          uint64_t old_time = *results[0].getFileTime();
-          uint64_t new_time = *results[1].getFileTime();
+          time_changed_context.getValues(event, results);
+          uint64_t old_time = *results[0].getFileTimeChecked();
+          uint64_t new_time = *results[1].getFileTimeChecked();
 
-          // mindestens eine Sekunde Abstand
-          if (new_time < old_time ||  new_time - old_time < 10*1000*1000)
-            break;
-
-          database_.emplace_back(
-                PowerEvent::Type::RESUME,
-                new_time);
-          database_.emplace_back(
-                PowerEvent::Type::SUSPEND,
-                old_time);
+          if (old_time < new_time) {
+            database_.emplace_back(
+                  PowerEvent::Type::SystemTimeTurnForth,
+                  old_time,
+                  new_time - old_time);
+          } else {
+            database_.emplace_back(
+                  PowerEvent::Type::SystemTimeTurnedBack,
+                  old_time,
+                  old_time - new_time);
+          }
           break;
         }
 
         case 12:
           database_.emplace_back(
-                PowerEvent::Type::BOOT_UP,
-                *boot_up_context.getValue(event).getFileTime());
+                PowerEvent::Type::BootUp,
+                *boot_up_context.getValue(event).getFileTimeChecked());
           break;
 
         case 13:
           database_.emplace_back(
-                PowerEvent::Type::SHUTDOWN,
-                *shutdown_context.getValue(event).getFileTime());
+                PowerEvent::Type::Shutdown,
+                *shutdown_context.getValue(event).getFileTimeChecked());
           break;
         }
+      }
+    }
+
+    EventIterator kernel_power = log.query(L"*[System/Provider[@Name=\"Microsoft-Windows-Kernel-Power\"]]");
+    RenderContext time_created_context(L"Event/System/TimeCreated/@SystemTime");
+    while (kernel_power.next(event)) {
+      Variant result = id_context.getValue(event);
+
+      const uint16_t* eventid = result.getUInt16();
+      if (eventid && *eventid == 42) {
+        database_.emplace_back(
+              PowerEvent::Type::Suspend,
+              *time_created_context.getValue(event).getFileTimeChecked());
+      }
+    }
+
+    EventIterator power_troubleshooting = log.query(L"*[System/Provider[@Name=\"Microsoft-Windows-Power-Troubleshooter\"]]");
+    RenderContext wake_time(L"Event/EventData/Data[@Name=\"WakeTime\"]");
+    while (power_troubleshooting.next(event)) {
+      Variant result = id_context.getValue(event);
+
+      const uint16_t* eventid = result.getUInt16();
+      if (eventid && *eventid == 1) {
+        database_.emplace_back(
+              PowerEvent::Type::Resume,
+              *wake_time.getValue(event).getFileTimeChecked());
       }
     }
 
@@ -134,12 +161,20 @@ void UptimeRequest::run(QString path)
       return a.getTime() > b.getTime();
     });
 
+    qDebug() << "Database size: " << database_.size() * sizeof(PowerEvent)
+             << "Database memory usage: " << (((database_.size()-1)/512)+1) * 512 * sizeof(PowerEvent);
+
     emit ready();
 
   }
   catch (WinException exp)
   {
     qDebug() << QString::fromWCharArray(exp.what());
+    emit ready();
+  }
+  catch (std::exception exp)
+  {
+    qDebug() << QString(exp.what());
     emit ready();
   }
 }
@@ -153,17 +188,23 @@ void PowerEvent::print() const
 QString PowerEvent::getTypeString() const
 {
   switch (type_) {
-  case Type::BOOT_UP:
+  case Type::BootUp:
     return QStringLiteral("Boot up");
 
-  case Type::SHUTDOWN:
+  case Type::Shutdown:
     return QStringLiteral("Shutdown");
 
-  case Type::SUSPEND:
+  case Type::Suspend:
     return QStringLiteral("Suspend");
 
-  case Type::RESUME:
+  case Type::Resume:
     return QStringLiteral("Resume");
+
+  case Type::SystemTimeTurnForth:
+    return QStringLiteral("SystemTimeTurnForth");
+
+  case Type::SystemTimeTurnedBack:
+    return QStringLiteral("SystemTimeTurnedBack");
 
   default:
     return QString();

@@ -18,10 +18,9 @@
  */
 
 #include "mainwindow.h"
-#include <QApplication>
 
-#define _STRINGIFY(x) #x
-#define STRINGIFY(x) _STRINGIFY(x)
+#include <QApplication>
+#include "utils.h"
 
 int main(int argc, char *argv[])
 {

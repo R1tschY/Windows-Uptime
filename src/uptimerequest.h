@@ -62,25 +62,29 @@ private:
 struct PowerEvent {
 public:
   enum class Type {
-    BOOT_UP,
-    SHUTDOWN,
-    SUSPEND,
-    RESUME
+    BootUp,
+    Shutdown,
+    Suspend,
+    Resume,
+    SystemTimeTurnForth,
+    SystemTimeTurnedBack
   };
 
-  PowerEvent(Type type, ULONGLONG time) :
-    type_(type), time_(time)
+  PowerEvent(Type type, ULONGLONG time, ULONGLONG time_needed = 0) :
+    time_(time), time_needed_(time_needed), type_(type)
   { }
 
   void print() const;
 
   Type getType() const { return type_; }
   SystemTime getTime() const { return time_; }
+  ULONGLONG getTimeNeeded() const { return time_needed_; }
   QString getTypeString() const;
 
 private:
-  Type type_;
   SystemTime time_;
+  ULONGLONG time_needed_;
+  Type type_;
 };
 
 class UptimeRequest : public QObject {
