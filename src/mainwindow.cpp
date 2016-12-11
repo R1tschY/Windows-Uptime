@@ -38,9 +38,10 @@
 #include <array>
 
 #include "winevt/winexception.h"
-#include "uptimeview.h"
-#include "dayuptimecalculator.h"
 #include "utils.h"
+#include "views/rowsview.h"
+#include "data/itemmodel.h"
+#include "modules/powerstatemodule.h"
 
 namespace WinUptime {
 
@@ -75,6 +76,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
   // current date
   date_ = QDate::currentDate();
+  date_ = date_.addDays(1 - date_.day());
 
   // design
   resize(500, 400);
@@ -90,15 +92,16 @@ MainWindow::MainWindow(QWidget *parent) :
   auto layout = new QVBoxLayout(main_screen_);
 
   createHeader(layout);
-  createTableView(layout);
+
+  // backend
+  createBackend(layout);
 
   // finsh layout
   main_layout_->setCurrentWidget(welcome_screen_);
   setCentralWidget(main_widget);
 
-  // worker thread
-  database_ = new UptimeRequest(&worker_thread_);
-  connect(database_, SIGNAL(ready()), this, SLOT(onDatabaseLoaded()));
+
+  update();
 }
 
 void MainWindow::createMenu()
@@ -139,41 +142,17 @@ void MainWindow::createWelcomeScreen()
   button_list->setLayout(bllayout);
   wslayout->addWidget(button_list, 0, Qt::AlignCenter);
 
-  QPushButton *openLocal = new QPushButton(local_icon, tr("Load form local computer"));
+  QPushButton *openLocal = new QPushButton(local_icon, tr("Load from local computer"));
   openLocal->setIconSize(QSize(32, 32));
   openLocal->setStyleSheet(QStringLiteral("padding: 10px; font-size: 13px;"));
   connect(openLocal, SIGNAL(clicked()), this, SLOT(onLoadLocal()));
   bllayout->addWidget(openLocal);
 
-  QPushButton *openFile = new QPushButton(local_file, tr("Load form file ..."));
+  QPushButton *openFile = new QPushButton(local_file, tr("Load from file ..."));
   openFile->setIconSize(QSize(32, 32));
   openFile->setStyleSheet(QStringLiteral("padding: 10px; font-size: 13px;"));
   connect(openFile, SIGNAL(clicked()), this, SLOT(onLoadFile()));
   bllayout->addWidget(openFile);
-}
-
-void MainWindow::createTableView(QBoxLayout* layout)
-{
-  table_view_ = new QTableView();
-  model_ = new EventModel();
-
-  table_view_->setModel(model_);
-  table_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
-  table_view_->setSelectionMode(QAbstractItemView::SingleSelection);
-  table_view_->setWordWrap(true);
-  table_view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  table_view_->setShowGrid(false);
-
-  QHeaderView* vheader = table_view_->verticalHeader();
-  vheader->setHidden(true);
-
-  QHeaderView* hheader = table_view_->horizontalHeader();
-  hheader->setFrameShape(QFrame::NoFrame);
-  hheader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  hheader->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-  hheader->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-
-  layout->addWidget(table_view_);
 }
 
 void MainWindow::createProgressView()
@@ -243,79 +222,92 @@ void MainWindow::createHeader(QBoxLayout* layout)
   headerlayout->addWidget(menu_btn_);
 }
 
+void MainWindow::createBackend(QBoxLayout* layout)
+{
+  model_ = new ItemModel(this);
+  power_state_.reset(new PowerStateModule());
+  model_->addSubModel(power_state_->createModel(this));
+
+  view_ = new RowsView(this);
+  view_->setModel(model_);
+
+  connect(model_, SIGNAL(endLoading()), this, SLOT(onDatabaseLoaded()));
+
+  layout->addWidget(view_);
+}
+
 MainWindow::~MainWindow()
 {
-  worker_thread_.quit();
-  worker_thread_.wait();
+
 }
 
 void MainWindow::onYearBack()
 {
   date_ = date_.addYears(-1);
-  updateView();
+  update();
 }
 
 void MainWindow::onYearForward()
 {
   date_ = date_.addYears(1);
-  updateView();
+  update();
 }
 
 void MainWindow::onMouthBack()
 {
   date_ = date_.addMonths(-1);
-  updateView();
+  update();
 }
 
 void MainWindow::onMouthForward()
 {
   date_ = date_.addMonths(1);
-  updateView();
+  update();
 }
 
 void MainWindow::onSaveEventLog()
 {
-  QString save_path = QFileDialog::getSaveFileName(
-            this,
-            tr("Save event log"));
-  if (save_path.length() == 0) return;
+//  QString save_path = QFileDialog::getSaveFileName(
+//            this,
+//            tr("Save event log"));
+//  if (save_path.length() == 0) return;
 
-  QFile file(save_path);
-  if (!file.open(QIODevice::WriteOnly)) {
-      QMessageBox::information(this, tr("Unable to open file"),
-          file.errorString());
-      return;
-  }
+//  QFile file(save_path);
+//  if (!file.open(QIODevice::WriteOnly)) {
+//      QMessageBox::information(this, tr("Unable to open file"),
+//          file.errorString());
+//      return;
+//  }
 
-  QTextStream out(&file);
-  out << "datetime;event;argument\n";
-  for (auto&& event : database_->getEvents()) {
-    out << event.getTime().toDateTime().toString(Qt::RFC2822Date)
-        << ";" << event.getTypeString()
-        << ";" << event.getTimeNeeded() / (10*1000) << "ms"
-        << "\n";
-  }
+//  QTextStream out(&file);
+//  out << "datetime;event;argument\n";
+//  for (auto&& event : database_->getEvents()) {
+//    out << event.getTime().toDateTime().toString(Qt::RFC2822Date)
+//        << ";" << event.getTypeString()
+//        << ";" << event.getTimeNeeded() / (10*1000) << "ms"
+//        << "\n";
+//  }
 }
 
 void MainWindow::onSaveUptimeLog()
 {
-  QString save_path = QFileDialog::getSaveFileName(
-            this,
-            tr("Save uptime log"));
-  if (save_path.length() == 0) return;
+//  QString save_path = QFileDialog::getSaveFileName(
+//            this,
+//            tr("Save uptime log"));
+//  if (save_path.length() == 0) return;
 
-  QFile file(save_path);
-  if (!file.open(QIODevice::WriteOnly)) {
-      QMessageBox::information(this, tr("Unable to open file"),
-          file.errorString());
-      return;
-  }
+//  QFile file(save_path);
+//  if (!file.open(QIODevice::WriteOnly)) {
+//      QMessageBox::information(this, tr("Unable to open file"),
+//          file.errorString());
+//      return;
+//  }
 
-  QTextStream out(&file);
-  out << "day of mouth;uptime;ontime\n";
-  for (auto&& row : model_->getRows()) {
-    out << std::get<0>(row) << ";" << std::get<1>(row).toString() << ";" << std::get<2>(row).toString() << "\n";
-  }
+//  QTextStream out(&file);
+//  out << "day of mouth;uptime;ontime\n";
+//  for (auto&& row : model_->getRows()) {
+//    out << std::get<0>(row) << ";" << std::get<1>(row).toString() << ";" << std::get<2>(row).toString() << "\n";
+//  }
 }
 
 void MainWindow::onAbout()
@@ -336,7 +328,7 @@ void MainWindow::onAbout()
 void MainWindow::onLoadLocal()
 {
   main_layout_->setCurrentWidget(progress_screen_);
-  database_->loadLocal();
+  model_->setLocalhostAsSource();
 }
 
 void MainWindow::onLoadFile()
@@ -345,42 +337,34 @@ void MainWindow::onLoadFile()
         this,
         tr("Open log"),
         QString(), tr("Event log (*.evt *.evtx *.etl);; All files (*.*)"));
-  if (file_path.length() == 0) return;
+  if (file_path.isEmpty())
+    return;
 
   main_layout_->setCurrentWidget(progress_screen_);
-  database_->loadFromFile(file_path);
+  model_->setFileSource(file_path);
 }
 
 void MainWindow::onDatabaseLoaded()
 {
+  loaded_ = true;
   main_layout_->setCurrentWidget(main_screen_);
-  updateView();
 }
 
-void MainWindow::updateView()
+void MainWindow::update()
 {
   // general
   year_lbl_->setText(QString::number(date_.year()));
   mouth_lbl_->setText(QDate::longMonthName(date_.month(), QDate::DateFormat));
-  model_->clear();
 
-  // calc
-  DayUptimeCalculator c(model_);
+  if (!loaded_)
+    return;
 
-  QDate begin_date(date_.year(), date_.month(), 1);
-  QDate end_date = begin_date.addMonths(1);  
-  database_->forEachEventBetween(
-        QDateTime(begin_date, QTime(0, 0)),
-        QDateTime(end_date, QTime(0, 0)),
-        [&] (const PowerEvent& event)
-  {
-    event.print();
-    c(event);
-  });
-  c.finish(end_date.addDays(-1).day());
+  // update event view
+  QDate start = date_;
+  QDate end = start.addMonths(1).addDays(-1);
 
-  // the end
-  model_->update();
+  qDebug() << "updateView" << start << " -> " << end;
+  model_->setRange(QDateTime(start), QDateTime(end));
 }
 
 } // namespace WinUptime

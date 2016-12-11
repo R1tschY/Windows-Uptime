@@ -20,11 +20,10 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <memory>
 #include <QMainWindow>
 #include <QDate>
 #include <QThread>
-
-#include "uptimerequest.h"
 
 class QTableView;
 class QLabel;
@@ -37,7 +36,9 @@ class QProgressBar;
 
 namespace WinUptime {
 
-class EventModel;
+class ItemModel;
+class UptimeView;
+class PowerStateModule;
 
 class MainWindow : public QMainWindow
 {
@@ -48,50 +49,51 @@ public:
   ~MainWindow();
 
 private:
-  EventModel* model_;
-
   // Menu widget
-  QPushButton* menu_btn_;
-  QMenu* popup_menu_;
+  QPushButton* menu_btn_ = nullptr;
+  QMenu* popup_menu_ = nullptr;
 
   // year widgets
-  QLabel* year_lbl_;
-  QPushButton* year_back_btn_;
-  QPushButton* year_forward_btn_;
+  QLabel* year_lbl_ = nullptr;
+  QPushButton* year_back_btn_ = nullptr;
+  QPushButton* year_forward_btn_ = nullptr;
 
   // mouth widgets
-  QLabel* mouth_lbl_;
-  QPushButton* mouth_back_btn_;
-  QPushButton* mouth_forward_btn_;
+  QLabel* mouth_lbl_ = nullptr;
+  QPushButton* mouth_back_btn_ = nullptr;
+  QPushButton* mouth_forward_btn_ = nullptr;
 
   // current date
   QDate date_;
 
-  // Database
-  UptimeRequest* database_;
-
   // Main widgets
-  QStackedLayout* main_layout_;
-  QWidget* welcome_screen_;
-  QWidget* main_screen_;
-  QWidget* progress_screen_;
-
-  // View widgets
-  QTableView* table_view_;
+  QStackedLayout* main_layout_ = nullptr;
+  QWidget* welcome_screen_ = nullptr;
+  QWidget* main_screen_ = nullptr;
+  QWidget* progress_screen_ = nullptr;
 
   // Progress
-  QLabel* progress_label_;
-  QProgressBar* progress_bar_;
-  QThread worker_thread_;
+  QLabel* progress_label_ = nullptr;
+  QProgressBar* progress_bar_ = nullptr;
 
-  void updateView();
+  // Backend
+  ItemModel* model_ = nullptr;
+  std::unique_ptr<PowerStateModule> power_state_;
+
+  // View
+  UptimeView* view_ = nullptr;
+
+  // internal state
+  bool loaded_ = false;
+
+  void update();
   void loadDatabase();
 
   void createMenu();
   void createWelcomeScreen();
-  void createTableView(QBoxLayout* layout);
   void createProgressView();
   void createHeader(QBoxLayout* layout);
+  void createBackend(QBoxLayout* layout);
 
 private slots:
   void onYearBack();

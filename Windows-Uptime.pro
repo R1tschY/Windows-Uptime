@@ -4,8 +4,8 @@
 #
 #-------------------------------------------------
 
-QT       += core gui widgets
-CONFIG   += c++11
+QT       += core gui widgets concurrent
+CONFIG   += c++14
 TARGET    = Windows-Uptime
 TEMPLATE  = app
 VERSION  = 0.1
@@ -48,9 +48,12 @@ SOURCES += \
     src/winevt/eventiterator.cpp \
     src/winevt/variant.cpp \
     src/winevt/rendercontext.cpp \
-    src/uptimerequest.cpp \
-    src/uptimeview.cpp \
-    src/dayuptimecalculator.cpp
+    src/views/uptimeview.cpp \
+    src/modules/module.cpp \
+    src/modules/powerstatemodule.cpp \
+    src/data/itemmodel.cpp \
+    src/views/rowsview.cpp \
+    src/data/items.cpp
 
 HEADERS  += \
     src/mainwindow.h \
@@ -63,10 +66,13 @@ HEADERS  += \
     src/winevt/errors.h \
     src/winevt/variant.h \
     src/winevt/rendercontext.h \
-    src/uptimerequest.h \
-    src/uptimeview.h \
-    src/dayuptimecalculator.h \
-    src/utils.h
+    src/utils.h \
+    src/views/uptimeview.h \
+    src/modules/module.h \
+    src/modules/powerstatemodule.h \
+    src/data/itemmodel.h \
+    src/views/rowsview.h \
+    src/data/items.h
 
 FORMS    +=
 
