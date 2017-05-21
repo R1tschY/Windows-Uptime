@@ -39,6 +39,9 @@ namespace WinUptime {
 class ItemModel;
 class UptimeView;
 class PowerStateModule;
+class DaysTableModel;
+class DetailsView;
+class Overview;
 
 class MainWindow : public QMainWindow
 {
@@ -49,27 +52,10 @@ public:
   ~MainWindow();
 
 private:
-  // Menu widget
-  QPushButton* menu_btn_ = nullptr;
-  QMenu* popup_menu_ = nullptr;
-
-  // year widgets
-  QLabel* year_lbl_ = nullptr;
-  QPushButton* year_back_btn_ = nullptr;
-  QPushButton* year_forward_btn_ = nullptr;
-
-  // mouth widgets
-  QLabel* mouth_lbl_ = nullptr;
-  QPushButton* mouth_back_btn_ = nullptr;
-  QPushButton* mouth_forward_btn_ = nullptr;
-
-  // current date
-  QDate date_;
-
   // Main widgets
   QStackedLayout* main_layout_ = nullptr;
   QWidget* welcome_screen_ = nullptr;
-  QWidget* main_screen_ = nullptr;
+  Overview* main_screen_ = nullptr;
   QWidget* progress_screen_ = nullptr;
 
   // Progress
@@ -78,28 +64,19 @@ private:
 
   // Backend
   ItemModel* model_ = nullptr;
+  ItemModel* loading_model_ = nullptr;
   std::unique_ptr<PowerStateModule> power_state_;
-
-  // View
-  UptimeView* view_ = nullptr;
 
   // internal state
   bool loaded_ = false;
 
-  void update();
   void loadDatabase();
 
   void createMenu();
   void createWelcomeScreen();
   void createProgressView();
-  void createHeader(QBoxLayout* layout);
-  void createBackend(QBoxLayout* layout);
-
-private slots:
-  void onYearBack();
-  void onYearForward();
-  void onMouthBack();
-  void onMouthForward();
+  void createOverview();
+  void createBackend();
 
   void onSaveEventLog();
   void onSaveUptimeLog();
@@ -109,7 +86,8 @@ private slots:
   void onLoadLocal();
   void onLoadFile();
 
-  void onDatabaseLoaded();
+  void onBeginDatabaseLoading();
+  void onEndDatabaseLoading();
 };
 
 } // namespace WinUptime

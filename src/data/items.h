@@ -7,6 +7,8 @@
 #include <QDateTime>
 #include <QString>
 #include <QTime>
+#include <QColor>
+#include <QIcon>
 
 namespace WinUptime {
 
@@ -53,18 +55,26 @@ class Item
 public:
   Item(const Module* source) : source_(source) { }
 
+  QString caption() const { return caption_; }
   void setCaption(const QString& caption) { caption_ = caption; }
-  void setReduceText(const QString& text);
-  void setReduceId(const QString& text);
+
+  QString description() const { return description_; }
   void setDescription(const QString& description) { description_ = description; }
 
-  QString caption() const { return caption_; }
-  QString description() const { return description_; }
+  QColor color() const { return color_; }
+  void setColor(QColor color) { color_ = color; }
+
+  const Module* sourceModule() const { return source_; }
+
+  QString type() const { return type_; }
+  void setType(const QString& type) { type_ = type; }
 
 private:
   const Module* source_;
+  QString type_;
   QString caption_;
   QString description_;
+  QColor color_;
 };
 
 class RangeItem : public Item
@@ -72,14 +82,14 @@ class RangeItem : public Item
 public:
   RangeItem(const Module* source) : Item(source) { }
 
-  void setRange(SystemTime start, SystemTime end);
+  void setRange(const QDateTime& start, const QDateTime& end);
 
-  SystemTime start() const { return start_; }
-  SystemTime end() const { return end_; }
+  QDateTime start() const { return start_; }
+  QDateTime end() const { return end_; }
 
 private:
-  SystemTime start_;
-  SystemTime end_;
+  QDateTime start_;
+  QDateTime end_;
 };
 
 class SpotItem : public Item
@@ -87,11 +97,15 @@ class SpotItem : public Item
 public:
   SpotItem(const Module* source) : Item(source) { }
 
-  void setTime(SystemTime time) { time_ = time; }
-  SystemTime time() const { return time_; }
+  void setTime(const QDateTime& time) { time_ = time; }
+  const QDateTime& time() const { return time_; }
+
+  QIcon icon() const { return icon_; }
+  void setIcon(const QIcon& icon) { icon_ = icon; }
 
 private:
-  SystemTime time_;
+  QDateTime time_;
+  QIcon icon_;
 };
 
 class Items
@@ -104,6 +118,9 @@ public:
 
   void addRange(const RangeItem& item);
   void addRange(RangeItem&& item);
+
+  void addSpot(const SpotItem& item);
+  void addSpot(SpotItem&& item);
 
   const std::vector<RangeItem>& ranges() const { return ranges_; }
   const std::vector<SpotItem>& spots() const { return spots_; }

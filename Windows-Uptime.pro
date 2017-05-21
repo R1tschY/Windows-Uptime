@@ -24,7 +24,7 @@ QMAKE_RESOURCE_FLAGS += -no-compress
 DEFINES *= QT_USE_QSTRINGBUILDER
 
 # Version für Quelldateien
-DEFINES += PACKAGE_VERSION=$$VERSION
+DEFINES += PACKAGE_VERSION=\\\"$$VERSION\\\"
 
 # include what we need
 QMAKE_CXXFLAGS += \
@@ -48,12 +48,16 @@ SOURCES += \
     src/winevt/eventiterator.cpp \
     src/winevt/variant.cpp \
     src/winevt/rendercontext.cpp \
-    src/views/uptimeview.cpp \
     src/modules/module.cpp \
     src/modules/powerstatemodule.cpp \
     src/data/itemmodel.cpp \
-    src/views/rowsview.cpp \
-    src/data/items.cpp
+    src/data/items.cpp \
+    src/mouthview/daystablemodel.cpp \
+    src/detailsview/detailsmodel.cpp \
+    src/detailsview/detailsview.cpp \
+    src/mouthview/timelineitemdelegate.cpp \
+    src/timeutils.cpp \
+    src/mouthview/overview.cpp
 
 HEADERS  += \
     src/mainwindow.h \
@@ -67,12 +71,16 @@ HEADERS  += \
     src/winevt/variant.h \
     src/winevt/rendercontext.h \
     src/utils.h \
-    src/views/uptimeview.h \
     src/modules/module.h \
     src/modules/powerstatemodule.h \
     src/data/itemmodel.h \
-    src/views/rowsview.h \
-    src/data/items.h
+    src/data/items.h \
+    src/mouthview/daystablemodel.h \
+    src/detailsview/detailsmodel.h \
+    src/detailsview/detailsview.h \
+    src/mouthview/timelineitemdelegate.h \
+    src/timeutils.h \
+    src/mouthview/overview.h
 
 FORMS    +=
 

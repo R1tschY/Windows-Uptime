@@ -6,5 +6,7 @@
         <file>img/local.png</file>
         <file>img/file.png</file>
         <file>img/app.png</file>
+        <file>img/down.png</file>
+        <file>img/up.png</file>
     </qresource>
 </RCC>

@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 
   a.setOrganizationName(QStringLiteral("R1tschY"));
   a.setApplicationName(QStringLiteral("Windows-Uptime"));
-  a.setApplicationVersion(QStringLiteral(STRINGIFY(PACKAGE_VERSION)));
+  a.setApplicationVersion(PACKAGE_VERSION);
 
   WinUptime::MainWindow w;
   w.show();

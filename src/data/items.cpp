@@ -17,10 +17,12 @@ SystemTime::SystemTime(const QDateTime& t)
 
   FILETIME file_time;
   bool success = SystemTimeToFileTime(&system_time, &file_time);
-  if (success) {
-    time_ = (uint64_t(file_time.dwHighDateTime) << 32) + file_time.dwLowDateTime;
+  if (success)
+  {
+    time_ = SystemTime(file_time).time_;
   }
-  else {
+  else
+  {
     time_ = 0;
   }
 }
@@ -32,7 +34,6 @@ QDateTime SystemTime::toDateTime() const
   FILETIME file_time = toFileTime();
   bool success = FileTimeToSystemTime(&file_time, &system_time);
   if (success) {
-    result.setTimeSpec(Qt::UTC);
     result.setDate(QDate(
                      system_time.wYear,
                      system_time.wMonth,
@@ -42,6 +43,7 @@ QDateTime SystemTime::toDateTime() const
                      system_time.wMinute,
                      system_time.wSecond,
                      system_time.wMilliseconds));
+    result.setTimeSpec(Qt::UTC);
   }
   return result.toLocalTime();
 }
@@ -63,7 +65,7 @@ void Items::merge(const Items& items)
 
 void Items::addRange(const RangeItem& item)
 {
-  ranges_.push_back(item);
+  ranges_.emplace_back(item);
 }
 
 void Items::addRange(RangeItem&& item)
@@ -71,17 +73,17 @@ void Items::addRange(RangeItem&& item)
   ranges_.emplace_back(std::move(item));
 }
 
-void Item::setReduceText(const QString& text)
+void Items::addSpot(const SpotItem& item)
 {
-
+  spots_.emplace_back(item);
 }
 
-void Item::setReduceId(const QString& text)
+void Items::addSpot(SpotItem&& item)
 {
-
+  spots_.emplace_back(item);
 }
 
-void RangeItem::setRange(SystemTime start, SystemTime end)
+void RangeItem::setRange(const QDateTime& start, const QDateTime& end)
 {
   if (end < start)
   {

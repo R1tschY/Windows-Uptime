@@ -9,6 +9,8 @@
 #include <QDir>
 #include <cassert>
 #include <deque>
+#include <QApplication>
+#include <QStyle>
 
 #include "../winevt/eventlog.h"
 #include "../winevt/rendercontext.h"
@@ -47,6 +49,7 @@ private:
 
 class PowerStateModel : public ModuleModel
 {
+  Q_DECLARE_TR_FUNCTIONS(PowerStateModel)
 public:
   PowerStateModel(const PowerStateModule* module, QObject* parent);
   ~PowerStateModel();
@@ -75,6 +78,7 @@ public:
   DayUptimeCalculator(Items& items, const PowerStateModule* module);
 
   void operator()(const PowerEvent& event);
+  void finish();
 
 private:
   PowerState state_ = PowerState::Unknown;
@@ -82,6 +86,21 @@ private:
   Items& items_;
   const PowerStateModule* module_;
 };
+
+
+class PowerEventSpotsAdder {
+public:
+  PowerEventSpotsAdder(Items& items, const PowerStateModule* module)
+    : items_(items), module_(module)
+  { }
+
+  void operator()(const PowerEvent& event);
+
+private:
+  Items& items_;
+  const PowerStateModule* module_;
+};
+
 
 ModuleModel* PowerStateModule::createModel(QObject* parent)
 {
@@ -96,10 +115,6 @@ PowerStateModel::~PowerStateModel() = default;
 
 Items PowerStateModel::scanRange(SystemTime start, SystemTime end, EventLog& log)
 {
-  qDebug()<< __PRETTY_FUNCTION__ << __LINE__;
-
-  qDebug() << "scanRange" << start.toDateTime() << " -> " << end.toDateTime();
-
   if (log_ != &log)
   {
     log_ = & log;
@@ -110,6 +125,7 @@ Items PowerStateModel::scanRange(SystemTime start, SystemTime end, EventLog& log
 
   Items result;
   DayUptimeCalculator c(result, module_);
+  PowerEventSpotsAdder pesa(result, module_);
 
   // do better with std::sort, std::lower_bound and std::upper_bound
   for (auto i = database_.cbegin(); i != database_.cend(); i++) {
@@ -117,10 +133,9 @@ Items PowerStateModel::scanRange(SystemTime start, SystemTime end, EventLog& log
     if (event.getTime() > start && event.getTime() < end) {
       event.print();
       c(event);
+      pesa(event);
     }
   }
-  qDebug()<< __PRETTY_FUNCTION__ << __LINE__;
-
   return result;
 }
 
@@ -229,21 +244,31 @@ void DayUptimeCalculator::operator()(const PowerEvent& event)
 {
   RangeItem item(module_);
 
-  qDebug() << "DayUptimeCalculator" << event.getTime().toDateTime();
-
   if (event.getType() != PowerEvent::Type::SystemTimeTurnForth &&
       event.getType() != PowerEvent::Type::SystemTimeTurnedBack)
   {
     switch (state_) {
     case PowerState::Suspended:
-      item.setRange(state_start_time_, event.getTime());
+      item.setRange(state_start_time_.toDateTime().toLocalTime(), event.getTime().toDateTime().toLocalTime());
       item.setCaption("Suspended");
+      item.setColor(Qt::yellow);
+      item.setDescription(
+            QString("Suspended from %1 to %2").arg(
+              item.start().toString(Qt::TextDate),
+              item.end().toString(Qt::TextDate)));
+      item.setType("powerstate.suspended");
       items_.addRange(item);
       break;
 
     case PowerState::On:
-      item.setRange(state_start_time_, event.getTime());
+      item.setRange(state_start_time_.toDateTime().toLocalTime(), event.getTime().toDateTime().toLocalTime());
       item.setCaption("On");
+      item.setColor(Qt::green);
+      item.setDescription(
+            QString("On from %1 to %2").arg(
+              item.start().toString(Qt::TextDate),
+              item.end().toString(Qt::TextDate)));
+      item.setType("powerstate.on");
       items_.addRange(item);
       break;
 
@@ -254,20 +279,28 @@ void DayUptimeCalculator::operator()(const PowerEvent& event)
       switch (event.getType()) {
       case PowerEvent::Type::Shutdown:
       case PowerEvent::Type::Suspend:
-        item.setRange(state_start_time_, event.getTime());
+        item.setRange(state_start_time_.toDateTime().toLocalTime(), event.getTime().toDateTime().toLocalTime());
         item.setCaption("On");
+        item.setColor(Qt::green);
+        item.setType("powerstate.on");
         items_.addRange(item);
         break;
 
       case PowerEvent::Type::Resume:
-        item.setRange(state_start_time_, event.getTime());
+        item.setRange(state_start_time_.toDateTime().toLocalTime(), event.getTime().toDateTime().toLocalTime());
         item.setCaption("Suspended");
+        item.setColor(Qt::yellow);
+        item.setType("powerstate.suspended");
         items_.addRange(item);
         break;
 
       case PowerEvent::Type::BootUp:
         break;
       }
+      break;
+
+    default:
+      break;
     }
   }
 
@@ -297,6 +330,57 @@ void DayUptimeCalculator::operator()(const PowerEvent& event)
     // TODO
     break;
   }
+}
+
+void DayUptimeCalculator::finish()
+{
+  // TODO
+}
+
+void PowerEventSpotsAdder::operator()(const PowerEvent& event)
+{
+  SpotItem spot(module_);
+  spot.setTime(event.getTime().toDateTime().toLocalTime());
+
+  switch (event.getType()) {
+  case PowerEvent::Type::Suspend:
+    spot.setCaption(PowerStateModel::tr("Suspended"));
+    spot.setType("powerstate.suspend");
+    spot.setIcon(qApp->style()->standardIcon(QStyle::SP_MediaPause));
+    break;
+
+  case PowerEvent::Type::Shutdown:
+    spot.setCaption(PowerStateModel::tr("Shutdown"));
+    spot.setIcon(QIcon(":/img/down.png"));
+    spot.setType("powerstate.shutdown");
+    break;
+
+  case PowerEvent::Type::BootUp:
+    spot.setCaption(PowerStateModel::tr("Boot up"));
+    spot.setIcon(QIcon(":/img/up.png"));
+    spot.setType("powerstate.boot_up");
+    break;
+
+  case PowerEvent::Type::Resume:
+    spot.setCaption(PowerStateModel::tr("Resume"));
+    spot.setIcon(qApp->style()->standardIcon(QStyle::SP_MediaPlay));
+    spot.setType("powerstate.resume");
+    break;
+
+  case PowerEvent::Type::SystemTimeTurnForth:
+    spot.setCaption(PowerStateModel::tr("System Time Changed"));
+    spot.setIcon(QIcon(":/img/app.png"));
+    spot.setType("powerstate.systemtime.turn_forth");
+    break;
+
+  case PowerEvent::Type::SystemTimeTurnedBack:
+    spot.setCaption(PowerStateModel::tr("System Time Changed"));
+    spot.setIcon(QIcon(":/img/app.png"));
+    spot.setType("powerstate.systemtime.turn_back");
+    break;
+  }
+
+  items_.addSpot(spot);
 }
 
 void PowerEvent::print() const

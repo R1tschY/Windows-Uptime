@@ -35,24 +35,28 @@ public:
   void setLocalhostAsSource();
 
   void setRange(QDateTime start, QDateTime end);
+  QDateTime getStart() const;
+  QDateTime getEnd() const;
 
   void update();
+
 
 signals:
   void beginLoading();
   void endLoading();
 
   void sourceChanged();
+  void rangeChanged();
 
 private slots:
   void onItemsReady();
 
 private:
   Items items_;
-  QFuture<Items> items_future_;
-  QFutureWatcher<Items> watcher_;
+  QFuture<Items> items_future_; // TODO: refactor me out of here
+  QFutureWatcher<Items> watcher_; // TODO: refactor me out of here
 
-  EventLog log_;
+  std::unique_ptr<EventLog> log_;
   QDateTime start_;
   QDateTime end_;
 
